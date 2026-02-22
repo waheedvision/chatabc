@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Chat ABC | AI Assistant</title>
+    
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&family=Noto+Sans+Arabic:wght@300;400;700&family=JetBrains+Mono&display=swap" rel="stylesheet">
+    
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Noto Sans Arabic', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        gemini: { bg: '#131314', sidebar: '#1e1f20', border: '#3c4043' }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+    <style>
+        .ur-text { font-family: 'Noto Sans Arabic', sans-serif; }
+        .recording-pulse { animation: pulse 1.5s infinite; color: #ef4444 !important; }
+        @keyframes pulse { 0% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.2); opacity: 0.7; } 100% { transform: scale(1); opacity: 1; } }
+        #chat-window { scroll-behavior: smooth; }
+        .auto-dir { unicode-bidi: plaintext; text-align: start; }
+        
+        /* Message styling */
+        .prose pre { background: #1a1a1a !important; color: #eee !important; direction: ltr !important; }
+        .prose code { color: #f472b6 !important; }
+    </style>
+</head>
+<body class="bg-white dark:bg-gemini-bg text-gray-800 dark:text-gray-200 min-h-[100dvh] flex flex-col transition-colors duration-300">
+
+    <div id="loading" class="fixed inset-0 flex flex-col items-center justify-center bg-white dark:bg-gemini-bg z-[100]">
+        <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mb-4"></div>
+        <p class="font-semibold">Loading Chat ABC...</p>
+    </div>
+
+    <div id="app" class="flex flex-1 w-full hidden">
+        <aside id="sidebar" class="fixed md:sticky top-0 h-[100dvh] w-72 bg-gray-50 dark:bg-gemini-sidebar border-r dark:border-gemini-border flex flex-col z-50 transform -translate-x-full md:translate-x-0 transition-transform duration-300">
+            <div class="p-5 flex items-center justify-between">
+                <h1 class="text-2xl font-bold text-blue-600 tracking-tight">Chat ABC</h1>
+                <button id="close-sidebar" class="md:hidden text-2xl">&times;</button>
+            </div>
+            
+            <button id="new-chat-btn" class="mx-4 mb-6 flex items-center justify-center gap-2 bg-blue-100 dark:bg-blue-900/30 hover:bg-blue-200 dark:hover:bg-blue-900/50 p-3 rounded-xl transition-all">
+                <span>+ New Chat</span> <span class="ur-text text-sm ml-1">(نیا چیٹ)</span>
+            </button>
+
+            <div id="chat-history" class="flex-1 overflow-y-auto px-2 space-y-1"></div>
+
+            <div class="p-4 border-t dark:border-gemini-border">
+                <button id="open-settings" class="w-full text-left p-3 hover:bg-gray-200 dark:hover:bg-gray-800 rounded-lg transition flex items-center justify-between">
+                    <span>⚙️ Settings (ترتیبات)</span>
+                </button>
+            </div>
+        </aside>
+
+        <main class="flex-1 flex flex-col relative h-[100dvh] overflow-hidden">
+            <header class="md:hidden p-4 border-b dark:border-gemini-border flex items-center gap-4 bg-white dark:bg-gemini-bg z-10">
+                <button id="open-sidebar" class="text-2xl">☰</button>
+                <span class="font-bold">Chat ABC</span>
+            </header>
+
+            <div id="chat-window" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-40">
+                <div id="welcome" class="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50 py-20">
+                    <div class="text-6xl text-blue-500 font-bold italic">ABC</div>
+                    <h2 class="text-2xl font-bold">Welcome to Chat ABC</h2>
+                    <p class="ur-text">میں آپ کی کیا مدد کر سکتا ہوں؟</p>
+                </div>
+            </div>
+
+            <div class="absolute bottom-0 left-0 w-full p-4 bg-gradient-to-t from-white dark:from-gemini-bg pt-10">
+                <div class="max-w-4xl mx-auto flex items-end gap-2 bg-gray-100 dark:bg-gray-800 rounded-3xl p-2 shadow-2xl border dark:border-gemini-border focus-within:ring-2 ring-blue-500 transition-all">
+                    <button id="mic-btn" class="p-3 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full transition-colors" title="Voice Input">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path></svg>
+                    </button>
+                    <textarea id="user-input" rows="1" class="flex-1 bg-transparent border-none outline-none p-3 resize-none max-h-48 auto-dir" placeholder="Type or speak..."></textarea>
+                    <button id="send-btn" class="p-3 text-blue-500 disabled:opacity-30 hover:scale-110 transition-transform" disabled>
+                        <svg class="w-7 h-7 transform rotate-90" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                    </button>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <div id="settings-modal" class="fixed inset-0 bg-black/70 z-[200] hidden flex items-center justify-center p-4">
+        <div class="bg-white dark:bg-gemini-sidebar w-full max-w-md rounded-2xl p-6 space-y-4 shadow-2xl">
+            <h2 class="text-xl font-bold border-b pb-2">Settings (ترتیبات)</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-1">OpenRouter API Key:</label>
+                    <input type="password" id="api-key" class="w-full p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gemini-border outline-none focus:ring-2 ring-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Model ID:</label>
+                    <input type="text" id="model-id" class="w-full p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gemini-border outline-none focus:ring-2 ring-blue-500" placeholder="e.g. deepseek/deepseek-r1:free">
+                </div>
+                
+                <div>
+                    <label class="block text-sm font-medium mb-1">Voice Language (زبان):</label>
+                    <select id="voice-lang" class="w-full p-2 bg-gray-50 dark:bg-gray-900 rounded-lg border dark:border-gemini-border outline-none">
+                        <option value="ur-PK">Urdu (اردو)</option>
+                        <option value="en-US">English (US)</option>
+                    </select>
+                </div>
+
+                <div class="flex items-center gap-2 py-2">
+                    <input type="checkbox" id="voice-output-check" class="w-4 h-4 text-blue-600 rounded">
+                    <label for="voice-output-check" class="text-sm">Enable AI Voice (آواز آن کریں)</label>
+                </div>
+            </div>
+            <div class="flex justify-end gap-3 mt-6">
+                <button id="close-settings" class="px-4 py-2 text-gray-500 hover:text-gray-700">Close</button>
+                <button id="save-settings" class="px-6 py-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-colors">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const state = {
+                history: JSON.parse(localStorage.getItem('abc_chats') || '[]'),
+                currentId: null,
+                settings: JSON.parse(localStorage.getItem('abc_settings') || '{"key":"","model":"deepseek/deepseek-r1:free","lang":"ur-PK","voice":true,"dark":true}')
+            };
+
+            const els = {
+                app: document.getElementById('app'),
+                loader: document.getElementById('loading'),
+                chatWin: document.getElementById('chat-window'),
+                input: document.getElementById('user-input'),
+                send: document.getElementById('send-btn'),
+                mic: document.getElementById('mic-btn'),
+                history: document.getElementById('chat-history'),
+                modal: document.getElementById('settings-modal'),
+                saveBtn: document.getElementById('save-settings')
+            };
+
+            // Initialize Settings UI
+            const initUI = () => {
+                document.getElementById('api-key').value = state.settings.key || '';
+                document.getElementById('model-id').value = state.settings.model || 'deepseek/deepseek-r1:free';
+                document.getElementById('voice-lang').value = state.settings.lang || 'ur-PK';
+                document.getElementById('voice-output-check').checked = state.settings.voice !== false;
+                
+                if (state.settings.dark) document.documentElement.classList.add('dark');
+                renderHistory();
+            };
+
+            const renderHistory = () => {
+                els.history.innerHTML = state.history.map(c => `
+                    <div onclick="loadChat('${c.id}')" class="p-3 text-sm rounded-xl cursor-pointer hover:bg-gray-200 dark:hover:bg-gray-800 transition truncate ${state.currentId === c.id ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 font-bold' : ''}">
+                        ${c.title}
+                    </div>
+                `).join('');
+            };
+
+            const appendMsg = (role, text) => {
+                document.getElementById('welcome')?.remove();
+                const div = document.createElement('div');
+                div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`;
+                div.innerHTML = `
+                    <div class="max-w-[85%] p-4 rounded-2xl shadow-sm ${role === 'user' ? 'bg-blue-600 text-white rounded-tr-none' : 'bg-gray-100 dark:bg-gray-800 prose dark:prose-invert rounded-tl-none'}">
+                        <div class="auto-dir ur-text">${role === 'user' ? text : marked.parse(text)}</div>
+                    </div>
+                `;
+                els.chatWin.appendChild(div);
+                els.chatWin.scrollTop = els.chatWin.scrollHeight;
+            };
+
+            window.loadChat = (id) => {
+                state.currentId = id;
+                const chat = state.history.find(c => c.id === id);
+                els.chatWin.innerHTML = '';
+                chat.msgs.forEach(m => appendMsg(m.role, m.content));
+                renderHistory();
+                if(window.innerWidth < 768) document.getElementById('sidebar').classList.add('-translate-x-full');
+            };
+
+            const handleSend = async () => {
+                const text = els.input.value.trim();
+                if(!text) return;
+                
+                if(!state.settings.key) {
+                    alert("Please enter API Key in Settings first!");
+                    els.modal.classList.remove('hidden');
+                    return;
+                }
+
+                if(!state.currentId) {
+                    state.currentId = Date.now().toString();
+                    state.history.unshift({ id: state.currentId, title: text.slice(0,30), msgs: [] });
+                }
+
+                const chat = state.history.find(c => c.id === state.currentId);
+                chat.msgs.push({ role: 'user', content: text });
+                appendMsg('user', text);
+                els.input.value = '';
+                els.send.disabled = true;
+
+                // Typing indicator
+                const tempDiv = document.createElement('div');
+                tempDiv.className = "text-sm italic opacity-50";
+                tempDiv.id = "typing";
+                tempDiv.innerText = "Thinking...";
+                els.chatWin.appendChild(tempDiv);
+
+                try {
+                    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+                        method: 'POST',
+                        headers: { 
+                            'Authorization': `Bearer ${state.settings.key}`, 
+                            'Content-Type': 'application/json',
+                            'X-Title': 'Chat ABC'
+                        },
+                        body: JSON.stringify({
+                            model: state.settings.model || 'deepseek/deepseek-r1:free',
+                            messages: chat.msgs
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    document.getElementById('typing')?.remove();
+                    
+                    if(data.error) throw new Error(data.error.message);
+                    
+                    const reply = data.choices[0].message.content;
+                    chat.msgs.push({ role: 'assistant', content: reply });
+                    appendMsg('assistant', reply);
+                    
+                    if(state.settings.voice) {
+                        const ut = new SpeechSynthesisUtterance(reply.replace(/[*#`]/g, ''));
+                        ut.lang = state.settings.lang;
+                        window.speechSynthesis.speak(ut);
+                    }
+                    
+                    localStorage.setItem('abc_chats', JSON.stringify(state.history));
+                    renderHistory();
+                } catch(e) { 
+                    document.getElementById('typing')?.remove();
+                    alert("Error: " + e.message); 
+                }
+                els.send.disabled = false;
+            };
+
+            // Voice Implementation
+            const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if(Rec) {
+                const recognition = new Rec();
+                recognition.onstart = () => els.mic.classList.add('recording-pulse');
+                recognition.onend = () => els.mic.classList.remove('recording-pulse');
+                recognition.onresult = (e) => {
+                    els.input.value = e.results[0][0].transcript;
+                    els.send.disabled = false;
+                    handleSend();
+                };
+                els.mic.onclick = () => {
+                    recognition.lang = state.settings.lang;
+                    recognition.start();
+                };
+            }
+
+            // Events
+            els.input.oninput = () => {
+                els.send.disabled = !els.input.value.trim();
+                els.input.style.height = 'auto';
+                els.input.style.height = els.input.scrollHeight + 'px';
+            };
+            
+            els.send.onclick = handleSend;
+            
+            els.input.onkeydown = (e) => {
+                if(e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                }
+            };
+
+            document.getElementById('new-chat-btn').onclick = () => {
+                state.currentId = null;
+                els.chatWin.innerHTML = '<div id="welcome" class="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-50 py-20"><div class="text-6xl text-blue-500 font-bold italic">ABC</div><h2 class="text-2xl font-bold">Welcome to Chat ABC</h2><p class="ur-text">میں آپ کی کیا مدد کر سکتا ہوں؟</p></div>';
+                renderHistory();
+            };
+
+            document.getElementById('open-settings').onclick = () => els.modal.classList.remove('hidden');
+            document.getElementById('close-settings').onclick = () => els.modal.classList.add('hidden');
+            
+            els.saveBtn.onclick = () => {
+                state.settings.key = document.getElementById('api-key').value;
+                state.settings.model = document.getElementById('model-id').value;
+                state.settings.lang = document.getElementById('voice-lang').value;
+                state.settings.voice = document.getElementById('voice-output-check').checked;
+                
+                localStorage.setItem('abc_settings', JSON.stringify(state.settings));
+                els.modal.classList.add('hidden');
+                alert("Settings Saved!");
+            };
+
+            document.getElementById('open-sidebar').onclick = () => document.getElementById('sidebar').classList.remove('-translate-x-full');
+            document.getElementById('close-sidebar').onclick = () => document.getElementById('sidebar').classList.add('-translate-x-full');
+
+            // Initialize App
+            initUI();
+            setTimeout(() => { 
+                els.loader.classList.add('hidden'); 
+                els.app.classList.remove('hidden'); 
+            }, 800);
+        });
+    </script>
+</body>
+</html>
